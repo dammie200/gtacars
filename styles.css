@@ -133,6 +133,34 @@ label {
   font-size: 13px;
 }
 
+.muted {
+  color: var(--muted);
+}
+
+.autofill-preview {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #0b1220;
+  display: grid;
+  gap: 8px;
+  min-height: 72px;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-media {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .table-wrapper {
   overflow: auto;
   border: 1px solid var(--border);
@@ -204,6 +232,12 @@ table thead {
   border-radius: 999px;
   padding: 4px 8px;
   font-size: 12px;
+}
+
+.tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .grid-layout {

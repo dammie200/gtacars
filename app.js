@@ -94,22 +94,22 @@ const garageMapSelect = document.getElementById('garage-map');
 const floorMapSelect = document.getElementById('floor-map');
 const grid = document.getElementById('garage-grid');
 const garageOptions = document.getElementById('garage-options');
-const brandOptions = document.getElementById('brand-options');
-const modelOptions = document.getElementById('model-options');
-const classOptions = document.getElementById('class-options');
+const modelSelect = document.getElementById('model-select');
+const wishlistModelSelect = document.getElementById('wishlist-model-select');
+const autofillPreview = document.getElementById('autofill-preview');
+const wishlistPreview = document.getElementById('wishlist-preview');
 
 const exportBtn = document.getElementById('export-json');
 const importFile = document.getElementById('import-file');
 const resetBtn = document.getElementById('reset-data');
 
+const catalogIndex = buildCatalogIndex();
 let state = normalizeState(loadState());
 
 if (!state.cars.length && !state.wishlist.length) {
   state = normalizeState(buildSampleData());
   saveState();
 }
-
-const catalogIndex = buildCatalogIndex();
 
 renderAll();
 
@@ -126,12 +126,16 @@ function loadState() {
 
 function normalizeState(value) {
   const base = { cars: [], wishlist: [], garages: [] };
+  const normalizedCars = Array.isArray(value?.cars) ? value.cars.map(enrichCarWithCatalog) : [];
+  const normalizedWishlist = Array.isArray(value?.wishlist) ? value.wishlist.map(enrichWishlistItem) : [];
   return {
     ...base,
     ...(value || {}),
-    cars: Array.isArray(value?.cars) ? value.cars : [],
-    wishlist: Array.isArray(value?.wishlist) ? value.wishlist : [],
-    garages: Array.isArray(value?.garages) ? value.garages : Array.from(new Set((value?.cars || []).map((c) => c.garage))),
+    cars: normalizedCars,
+    wishlist: normalizedWishlist,
+    garages: Array.isArray(value?.garages)
+      ? value.garages
+      : Array.from(new Set((value?.cars || []).map((c) => c.garage))),
   };
 }
 
@@ -156,13 +160,33 @@ function renderFormSuggestions() {
   const garages = getAllGarages();
   garageOptions.innerHTML = garages.map((g) => `<option value="${g}"></option>`).join('');
 
-  const brands = Array.from(new Set([...CAR_CATALOG.map((c) => c.brand), ...state.cars.map((c) => c.brand)])).sort();
-  brandOptions.innerHTML = brands.map((b) => `<option value="${b}"></option>`).join('');
+  renderModelSelects();
+}
 
-  modelOptions.innerHTML = CAR_CATALOG.map((c) => `<option value="${c.model}"></option>`).join('');
+function renderModelSelects() {
+  const models = Array.from(
+    new Set([
+      ...CAR_CATALOG.map((c) => c.model),
+      ...state.cars.map((c) => c.model),
+      ...state.wishlist.map((c) => c.model),
+    ])
+  )
+    .filter(Boolean)
+    .sort();
 
-  const classes = Array.from(new Set([...CAR_CATALOG.map((c) => c.class), ...state.cars.map((c) => c.class).filter(Boolean)])).sort();
-  classOptions.innerHTML = classes.map((c) => `<option value="${c}"></option>`).join('');
+  const carFormValue = modelSelect.value;
+  const wishlistValue = wishlistModelSelect.value;
+
+  const options = ['<option value="">Kies een model</option>', ...models.map((m) => `<option value="${m}">${m}</option>`)];
+
+  modelSelect.innerHTML = options.join('');
+  wishlistModelSelect.innerHTML = options.join('');
+
+  modelSelect.value = models.includes(carFormValue) ? carFormValue : '';
+  wishlistModelSelect.value = models.includes(wishlistValue) ? wishlistValue : '';
+
+  renderAutofillPreview();
+  renderWishlistPreview();
 }
 
 function renderCarFilters() {
@@ -276,36 +300,95 @@ function buildCatalogIndex() {
   }, new Map());
 }
 
-function tryAutofillFromCatalog() {
-  const brandInput = carForm.elements.brand;
-  const modelInput = carForm.elements.model;
-  const classInput = carForm.elements.class;
-  const tagsInput = carForm.elements.tags;
-  const logoInput = carForm.elements.logo;
-  const imageInput = carForm.elements.image;
+function getCatalogEntry(model) {
+  if (!model) return null;
+  return catalogIndex.get(model.trim().toLowerCase()) || null;
+}
 
-  const model = modelInput.value.trim().toLowerCase();
-  if (!model) return;
+function enrichCarWithCatalog(car) {
+  const catalogEntry = getCatalogEntry(car?.model);
+  if (!catalogEntry) return car;
+  return {
+    ...catalogEntry,
+    ...car,
+    brand: car.brand || catalogEntry.brand,
+    class: car.class || catalogEntry.class,
+    tags: car.tags || catalogEntry.tags || '',
+    logo: car.logo || catalogEntry.logo || '',
+    image: car.image || catalogEntry.image || '',
+  };
+}
 
-  const catalogEntry = catalogIndex.get(model);
-  if (!catalogEntry) return;
+function enrichWishlistItem(item) {
+  const catalogEntry = getCatalogEntry(item?.model);
+  if (!catalogEntry) return item;
+  return {
+    ...catalogEntry,
+    ...item,
+    brand: item.brand || catalogEntry.brand,
+    class: item.class || catalogEntry.class,
+  };
+}
 
-  if (!brandInput.value) brandInput.value = catalogEntry.brand;
-  if (!classInput.value) classInput.value = catalogEntry.class;
-  if (!tagsInput.value) tagsInput.value = catalogEntry.tags || '';
-  if (!logoInput.value) logoInput.value = catalogEntry.logo || '';
-  if (!imageInput.value) imageInput.value = catalogEntry.image || '';
+function renderPreview(container, entry) {
+  if (!container) return;
+  if (!entry) {
+    container.innerHTML = '<p class="muted">Kies een model uit de catalogus. Merk, type, tags, logo en afbeelding worden automatisch ingevuld.</p>';
+    return;
+  }
+
+  const badges = (entry.tags || '')
+    .split(',')
+    .filter(Boolean)
+    .map((tag) => `<span class="badge">${tag.trim()}</span>`) || [];
+
+  const logo = entry.logo ? `<img class="logo-thumb" src="${entry.logo}" alt="${entry.brand} logo" />` : '';
+  const image = entry.image ? `<img class="car-thumb" src="${entry.image}" alt="${entry.model}" />` : '';
+
+  container.innerHTML = `
+    <div class="preview-header">
+      <div>
+        <strong>${entry.brand} ${entry.model}</strong>
+        <span class="muted">${entry.class || ''}</span>
+      </div>
+      <div class="preview-media">${logo}${image}</div>
+    </div>
+    <div class="tags">${badges.join('')}</div>
+  `;
+}
+
+function renderAutofillPreview() {
+  const entry = getCatalogEntry(carForm.elements.model.value);
+  renderPreview(autofillPreview, entry);
+}
+
+function renderWishlistPreview() {
+  const entry = getCatalogEntry(wishlistForm.elements.model.value);
+  renderPreview(wishlistPreview, entry);
 }
 
 function handleCarSubmit(event) {
   event.preventDefault();
   const formData = new FormData(carForm);
   const entry = Object.fromEntries(formData.entries());
+
+  const catalogEntry = getCatalogEntry(entry.model);
+  if (!catalogEntry) {
+    alert('Kies een model uit de catalogus zodat merk, type, tags, logo en afbeelding automatisch ingevuld worden.');
+    return;
+  }
+
   const car = {
+    ...catalogEntry,
     ...entry,
     id: crypto.randomUUID(),
     floor: Number(entry.floor),
     slot: entry.slot ? Number(entry.slot) : null,
+    brand: catalogEntry.brand,
+    class: catalogEntry.class,
+    tags: catalogEntry.tags || '',
+    logo: catalogEntry.logo || '',
+    image: catalogEntry.image || '',
   };
 
   state.cars.push(car);
@@ -321,10 +404,24 @@ function handleWishlistSubmit(event) {
   event.preventDefault();
   const formData = new FormData(wishlistForm);
   const entry = Object.fromEntries(formData.entries());
-  state.wishlist.push(entry);
+
+  const catalogEntry = getCatalogEntry(entry.model);
+  if (!catalogEntry) {
+    alert('Kies een model uit de catalogus zodat merk en type automatisch ingevuld worden.');
+    return;
+  }
+
+  const wishlistItem = {
+    ...catalogEntry,
+    ...entry,
+    brand: catalogEntry.brand,
+    class: catalogEntry.class,
+  };
+
+  state.wishlist.push(wishlistItem);
   saveState();
   wishlistForm.reset();
-  renderWishlist();
+  renderAll();
 }
 
 function exportJson() {
@@ -428,7 +525,7 @@ function buildSampleData() {
 }
 
 function resetData() {
-  state = buildSampleData();
+  state = normalizeState(buildSampleData());
   saveState();
   renderAll();
 }
@@ -457,9 +554,11 @@ function handleSlotChange(event) {
 }
 
 carForm.addEventListener('submit', handleCarSubmit);
-carForm.elements.model.addEventListener('change', tryAutofillFromCatalog);
-carForm.elements.model.addEventListener('blur', tryAutofillFromCatalog);
+modelSelect.addEventListener('change', renderAutofillPreview);
+modelSelect.addEventListener('input', renderAutofillPreview);
 wishlistForm.addEventListener('submit', handleWishlistSubmit);
+wishlistModelSelect.addEventListener('change', renderWishlistPreview);
+wishlistModelSelect.addEventListener('input', renderWishlistPreview);
 
 garageFilter.addEventListener('change', renderCarTable);
 searchFilter.addEventListener('input', renderCarTable);

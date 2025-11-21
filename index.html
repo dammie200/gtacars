@@ -44,20 +44,13 @@
         <label>Garage<input required name="garage" placeholder="Bijv. Eclipse Towers" list="garage-options" /></label>
         <label>Verdieping<input required name="floor" placeholder="1" type="number" min="1" /></label>
         <label>Parkeerplek<input name="slot" placeholder="1" type="number" min="1" /></label>
-        <label>Merk<input required name="brand" placeholder="Annis" list="brand-options" /></label>
-        <label>Model<input required name="model" placeholder="Elegy Retro Custom" list="model-options" /></label>
-        <label>Type<input name="class" placeholder="Sports, Super, etc." list="class-options" /></label>
-        <label>Tags<input name="tags" placeholder="weaponized, electric, armored" /></label>
-        <label>Logo URL<input name="logo" placeholder="https://..." /></label>
-        <label>Afbeelding URL<input name="image" placeholder="https://..." /></label>
+        <label>Model<select required name="model" id="model-select"></select></label>
         <label>Notities<input name="notes" placeholder="Kleuren, upgrades..." /></label>
+        <div class="autofill-preview" id="autofill-preview"></div>
         <button type="submit">Auto opslaan</button>
       </form>
 
       <datalist id="garage-options"></datalist>
-      <datalist id="brand-options"></datalist>
-      <datalist id="model-options"></datalist>
-      <datalist id="class-options"></datalist>
 
       <div class="table-wrapper">
         <table id="car-table">
@@ -87,10 +80,9 @@
         </div>
       </div>
       <form id="wishlist-form" class="grid">
-        <label>Merk<input required name="brand" placeholder="Annis" /></label>
-        <label>Model<input required name="model" placeholder="ZR350" /></label>
-        <label>Type<input name="class" placeholder="Sports Classic" /></label>
+        <label>Model<select required name="model" id="wishlist-model-select"></select></label>
         <label>Notities<input name="notes" placeholder="Upgrades of locatie" /></label>
+        <div class="autofill-preview" id="wishlist-preview"></div>
         <button type="submit">Toevoegen aan wensenlijst</button>
       </form>
       <ul id="wishlist" class="wishlist"></ul>
