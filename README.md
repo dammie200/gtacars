@@ -9,6 +9,7 @@ Een statische webtool om je GTA Online auto's, garages en wensenlijst lokaal bij
 - Virtuele plattegrond: kies een garage en verdieping en koppel auto's aan parkeerplekken.
 - Import/Export: laad een JSON/CSV-bestand (bijv. vanuit Excel) of exporteer je huidige data naar JSON.
 - Voorbeelddata: knop om snel met sample garages te starten.
+- Datalist-suggesties onthouden eerder ingevoerde garages en autofill vult merk, type, tags, logo en afbeelding vanuit een inbouwde catalogus zodra je een model kiest.
 
 ## CSV-structuur
 Gebruik de volgende kolomnamen voor CSV-import: `garage,floor,slot,brand,model,class,tags,logo,image,notes`.

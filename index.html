@@ -41,18 +41,23 @@
       </div>
 
       <form id="car-form" class="grid">
-        <label>Garage<input required name="garage" placeholder="Bijv. Eclipse Towers" /></label>
+        <label>Garage<input required name="garage" placeholder="Bijv. Eclipse Towers" list="garage-options" /></label>
         <label>Verdieping<input required name="floor" placeholder="1" type="number" min="1" /></label>
         <label>Parkeerplek<input name="slot" placeholder="1" type="number" min="1" /></label>
-        <label>Merk<input required name="brand" placeholder="Annis" /></label>
-        <label>Model<input required name="model" placeholder="Elegy Retro Custom" /></label>
-        <label>Type<input name="class" placeholder="Sports, Super, etc." /></label>
+        <label>Merk<input required name="brand" placeholder="Annis" list="brand-options" /></label>
+        <label>Model<input required name="model" placeholder="Elegy Retro Custom" list="model-options" /></label>
+        <label>Type<input name="class" placeholder="Sports, Super, etc." list="class-options" /></label>
         <label>Tags<input name="tags" placeholder="weaponized, electric, armored" /></label>
         <label>Logo URL<input name="logo" placeholder="https://..." /></label>
         <label>Afbeelding URL<input name="image" placeholder="https://..." /></label>
         <label>Notities<input name="notes" placeholder="Kleuren, upgrades..." /></label>
         <button type="submit">Auto opslaan</button>
       </form>
+
+      <datalist id="garage-options"></datalist>
+      <datalist id="brand-options"></datalist>
+      <datalist id="model-options"></datalist>
+      <datalist id="class-options"></datalist>
 
       <div class="table-wrapper">
         <table id="car-table">
