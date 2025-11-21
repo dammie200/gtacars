@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTA Online Garage Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>GTA Online Garage Tracker</h1>
+      <p>Beheer je garages, auto's en wensenlijst in één overzichtelijke tool. De gegevens worden lokaal opgeslagen in je browser.</p>
+    </div>
+    <div class="actions">
+      <button id="export-json">Export JSON</button>
+      <label class="file-input">Import JSON/CSV
+        <input type="file" id="import-file" accept=".json,.csv" />
+      </label>
+      <button id="reset-data" class="danger">Reset naar voorbeelddata</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Auto's</h2>
+          <p>Voeg nieuwe auto's toe en filter op garage of naam.</p>
+        </div>
+        <div class="filters">
+          <label>
+            Garage:
+            <select id="garage-filter"></select>
+          </label>
+          <label>
+            Zoeken:
+            <input type="text" id="search-filter" placeholder="Naam, merk of tags" />
+          </label>
+        </div>
+      </div>
+
+      <form id="car-form" class="grid">
+        <label>Garage<input required name="garage" placeholder="Bijv. Eclipse Towers" /></label>
+        <label>Verdieping<input required name="floor" placeholder="1" type="number" min="1" /></label>
+        <label>Parkeerplek<input name="slot" placeholder="1" type="number" min="1" /></label>
+        <label>Merk<input required name="brand" placeholder="Annis" /></label>
+        <label>Model<input required name="model" placeholder="Elegy Retro Custom" /></label>
+        <label>Type<input name="class" placeholder="Sports, Super, etc." /></label>
+        <label>Tags<input name="tags" placeholder="weaponized, electric, armored" /></label>
+        <label>Logo URL<input name="logo" placeholder="https://..." /></label>
+        <label>Afbeelding URL<input name="image" placeholder="https://..." /></label>
+        <label>Notities<input name="notes" placeholder="Kleuren, upgrades..." /></label>
+        <button type="submit">Auto opslaan</button>
+      </form>
+
+      <div class="table-wrapper">
+        <table id="car-table">
+          <thead>
+            <tr>
+              <th>Garage</th>
+              <th>Verd.</th>
+              <th>Plek</th>
+              <th>Merk</th>
+              <th>Model</th>
+              <th>Type</th>
+              <th>Tags</th>
+              <th>Logo</th>
+              <th>Afbeelding</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Wensenlijst</h2>
+          <p>Houd bij welke auto's je nog wilt kopen of bouwen.</p>
+        </div>
+      </div>
+      <form id="wishlist-form" class="grid">
+        <label>Merk<input required name="brand" placeholder="Annis" /></label>
+        <label>Model<input required name="model" placeholder="ZR350" /></label>
+        <label>Type<input name="class" placeholder="Sports Classic" /></label>
+        <label>Notities<input name="notes" placeholder="Upgrades of locatie" /></label>
+        <button type="submit">Toevoegen aan wensenlijst</button>
+      </form>
+      <ul id="wishlist" class="wishlist"></ul>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2>Virtuele Garage Plattegrond</h2>
+          <p>Selecteer een garage en verdieping om de parkeerplekken te zien.</p>
+        </div>
+        <div class="filters">
+          <label>
+            Garage:
+            <select id="garage-map"></select>
+          </label>
+          <label>
+            Verdieping:
+            <select id="floor-map"></select>
+          </label>
+        </div>
+      </div>
+      <div id="garage-grid" class="grid-layout"></div>
+    </section>
+  </main>
+
+  <template id="slot-template">
+    <div class="slot">
+      <div class="slot-header">
+        <span class="slot-number"></span>
+        <select class="slot-select"></select>
+      </div>
+      <div class="slot-body empty">
+        <p>Geen auto toegewezen</p>
+      </div>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
