@@ -221,7 +221,7 @@ function renderCarTable() {
     )
     .join('');
 
-  carTableBody.innerHTML = rows || '<tr><td colspan="9">Nog geen auto's</td></tr>';
+  carTableBody.innerHTML = rows || "<tr><td colspan=\"9\">Nog geen auto's</td></tr>";
 }
 
 function renderWishlist() {
@@ -259,7 +259,7 @@ function renderGarageGrid() {
   grid.innerHTML = '';
 
   if (!garage || Number.isNaN(floor)) {
-    grid.innerHTML = '<p>Voeg eerst auto's toe om een plattegrond te tonen.</p>';
+    grid.innerHTML = "<p>Voeg eerst auto's toe om een plattegrond te tonen.</p>";
     return;
   }
 
