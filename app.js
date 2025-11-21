@@ -1,5 +1,7 @@
 const STORAGE_KEY = 'gtacars-tracker-v1';
 const DEFAULT_SLOTS = 10;
+const GTABASE_SEARCH_URL = 'https://www.gtabase.com/search?searchword=';
+const GTABASE_VEHICLE_BASE = 'https://www.gtabase.com/grand-theft-auto-v/vehicles/';
 
 function makePlaceholder(text, { width = 320, height = 180, fontSize = 22, bg = '#0f172a', fg = '#e2e8f0' } = {}) {
   const safeText = String(text || '').trim() || 'Auto';
@@ -15,88 +17,14 @@ function carImagePlaceholder(model) {
   return makePlaceholder(model || 'Auto', { width: 360, height: 200, fontSize: 20, bg: '#0b132b', fg: '#e5e7eb' });
 }
 
-const CAR_CATALOG = [
-  {
-    brand: 'Annis',
-    model: 'Elegy Retro Custom',
-    class: 'Sports',
-    tags: 'tuner, awd',
-    logo: brandLogoPlaceholder('Annis'),
-    image: carImagePlaceholder('Elegy Retro Custom'),
-  },
-  {
-    brand: 'Pegassi',
-    model: 'Ignus',
-    class: 'Super',
-    tags: 'electric, hsw',
-    logo: brandLogoPlaceholder('Pegassi'),
-    image: carImagePlaceholder('Ignus'),
-  },
-  {
-    brand: 'Enus',
-    model: 'Deity',
-    class: 'Sedan',
-    tags: 'armored, missile-lock-on',
-    logo: brandLogoPlaceholder('Enus'),
-    image: carImagePlaceholder('Deity'),
-  },
-  {
-    brand: 'Bravado',
-    model: 'Buffalo STX',
-    class: 'Muscle',
-    tags: 'armored, missile-lock-on',
-    logo: brandLogoPlaceholder('Bravado'),
-    image: carImagePlaceholder('Buffalo STX'),
-  },
-  {
-    brand: 'Dinka',
-    model: 'Jester RR',
-    class: 'Sports',
-    tags: 'tuner',
-    logo: brandLogoPlaceholder('Dinka'),
-    image: carImagePlaceholder('Jester RR'),
-  },
-  {
-    brand: 'Overflod',
-    model: 'Entity MT',
-    class: 'Super',
-    tags: 'hsw',
-    logo: brandLogoPlaceholder('Overflod'),
-    image: carImagePlaceholder('Entity MT'),
-  },
-  {
-    brand: 'Grotti',
-    model: 'Itali GTO',
-    class: 'Sports',
-    tags: 'hsw',
-    logo: brandLogoPlaceholder('Grotti'),
-    image: carImagePlaceholder('Itali GTO'),
-  },
-  {
-    brand: 'Pfister',
-    model: 'Comet S2',
-    class: 'Sports',
-    tags: 'tuner',
-    logo: brandLogoPlaceholder('Pfister'),
-    image: carImagePlaceholder('Comet S2'),
-  },
-  {
-    brand: 'Annis',
-    model: 'ZR350',
-    class: 'Sports Classic',
-    tags: 'tuner',
-    logo: brandLogoPlaceholder('Annis'),
-    image: carImagePlaceholder('ZR350'),
-  },
-  {
-    brand: 'Lampadati',
-    model: 'Cinquemila',
-    class: 'Sedan',
-    tags: 'luxury',
-    logo: brandLogoPlaceholder('Lampadati'),
-    image: carImagePlaceholder('Cinquemila'),
-  },
-];
+function titleCase(text = '') {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+    .trim();
+}
 
 const carTableBody = document.querySelector('#car-table tbody');
 const garageFilter = document.getElementById('garage-filter');
@@ -118,7 +46,8 @@ const exportBtn = document.getElementById('export-json');
 const importFile = document.getElementById('import-file');
 const resetBtn = document.getElementById('reset-data');
 
-const catalogIndex = buildCatalogIndex();
+const modelCache = new Map();
+let lookupTimer = null;
 let state = normalizeState(loadState());
 
 if (!state.cars.length && !state.wishlist.length) {
@@ -141,8 +70,14 @@ function loadState() {
 
 function normalizeState(value) {
   const base = { cars: [], wishlist: [], garages: [] };
-  const normalizedCars = Array.isArray(value?.cars) ? value.cars.map(enrichCarWithCatalog) : [];
-  const normalizedWishlist = Array.isArray(value?.wishlist) ? value.wishlist.map(enrichWishlistItem) : [];
+  const normalizedCars = Array.isArray(value?.cars)
+    ? value.cars.map((car) => applyPlaceholders({
+        ...car,
+        floor: Number(car.floor) || 1,
+        slot: car.slot ? Number(car.slot) : null,
+      }))
+    : [];
+  const normalizedWishlist = Array.isArray(value?.wishlist) ? value.wishlist.map((item) => ({ ...item })) : [];
   return {
     ...base,
     ...(value || {}),
@@ -156,6 +91,14 @@ function normalizeState(value) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function applyPlaceholders(entry) {
+  return {
+    ...entry,
+    logo: entry.logo || brandLogoPlaceholder(entry.brand),
+    image: entry.image || carImagePlaceholder(entry.model),
+  };
 }
 
 function renderAll() {
@@ -181,9 +124,11 @@ function renderFormSuggestions() {
 function renderModelSelects() {
   const models = Array.from(
     new Set([
-      ...CAR_CATALOG.map((c) => c.model),
       ...state.cars.map((c) => c.model),
       ...state.wishlist.map((c) => c.model),
+      ...Array.from(modelCache.values())
+        .filter((m) => m?.model)
+        .map((m) => m.model),
     ])
   )
     .filter(Boolean)
@@ -209,7 +154,7 @@ function renderCarTable() {
     .filter((c) => !garage || c.garage === garage)
     .filter((c) => {
       if (!term) return true;
-      const text = `${c.brand} ${c.model} ${c.tags || ''} ${c.notes || ''}`.toLowerCase();
+      const text = `${c.brand || ''} ${c.model || ''} ${c.tags || ''} ${c.notes || ''}`.toLowerCase();
       return text.includes(term);
     })
     .sort((a, b) => a.garage.localeCompare(b.garage) || a.floor - b.floor || (a.slot || 0) - (b.slot || 0))
@@ -218,12 +163,12 @@ function renderCarTable() {
         <td>${car.garage}</td>
         <td>${car.floor}</td>
         <td>${car.slot || '-'}</td>
-        <td>${car.brand}</td>
-        <td>${car.model}</td>
+        <td>${car.brand || ''}</td>
+        <td>${car.model || ''}</td>
         <td>${car.class || ''}</td>
         <td>${car.tags || ''}</td>
-        <td>${car.logo ? `<img class="logo-thumb" src="${car.logo}" alt="${car.brand} logo" />` : ''}</td>
-        <td>${car.image ? `<img class="car-thumb" src="${car.image}" alt="${car.model}" />` : ''}</td>
+        <td>${car.logo ? `<img class="logo-thumb" src="${car.logo}" alt="${car.brand || 'Merk'} logo" />` : ''}</td>
+        <td>${car.image ? `<img class="car-thumb" src="${car.image}" alt="${car.model || 'Auto'}" />` : ''}</td>
       </tr>`
     )
     .join('');
@@ -235,7 +180,7 @@ function renderWishlist() {
   wishlistList.innerHTML = state.wishlist
     .map(
       (item) => `<li>
-        <h3>${item.brand} ${item.model}</h3>
+        <h3>${item.brand ? `${item.brand} ` : ''}${item.model}</h3>
         <p>${item.class || ''}</p>
         ${item.notes ? `<p>${item.notes}</p>` : ''}
       </li>`
@@ -282,16 +227,16 @@ function renderGarageGrid() {
     select.dataset.slot = i;
     select.innerHTML = `<option value="">-- koppel auto --</option>` +
       cars
-        .map((c) => `<option value="${c.id}" ${slotCar && c.id === slotCar.id ? 'selected' : ''}>${c.brand} ${c.model}</option>`)
+        .map((c) => `<option value="${c.id}" ${slotCar && c.id === slotCar.id ? 'selected' : ''}>${c.brand || ''} ${c.model || ''}</option>`)
         .join('');
 
     const body = node.querySelector('.slot-body');
     if (slotCar) {
       body.classList.remove('empty');
       body.innerHTML = `
-        <strong>${slotCar.brand} ${slotCar.model}</strong>
+        <strong>${slotCar.brand || ''} ${slotCar.model || ''}</strong>
         <span>${slotCar.class || ''}</span>
-        ${slotCar.image ? `<img src="${slotCar.image}" alt="${slotCar.model}" />` : ''}
+        ${slotCar.image ? `<img src="${slotCar.image}" alt="${slotCar.model || 'Auto'}" />` : ''}
         <div class="tags">${(slotCar.tags || '').split(',').filter(Boolean).map((t) => `<span class="badge">${t.trim()}</span>`).join('')}</div>
       `;
     }
@@ -300,47 +245,30 @@ function renderGarageGrid() {
   }
 }
 
-function buildCatalogIndex() {
-  return CAR_CATALOG.reduce((map, car) => {
-    map.set(car.model.toLowerCase(), car);
-    return map;
-  }, new Map());
-}
-
-function getCatalogEntry(model) {
+function getCachedModel(model) {
   if (!model) return null;
-  return catalogIndex.get(model.trim().toLowerCase()) || null;
+  return modelCache.get(model.trim().toLowerCase()) || null;
 }
 
-function enrichCarWithCatalog(car) {
-  const catalogEntry = getCatalogEntry(car?.model);
-  if (!catalogEntry) return car;
-  return {
-    ...catalogEntry,
-    ...car,
-    brand: car.brand || catalogEntry.brand,
-    class: car.class || catalogEntry.class,
-    tags: car.tags || catalogEntry.tags || '',
-    logo: car.logo || catalogEntry.logo || brandLogoPlaceholder(car.brand || catalogEntry.brand),
-    image: car.image || catalogEntry.image || carImagePlaceholder(car.model || catalogEntry.model),
-  };
-}
-
-function enrichWishlistItem(item) {
-  const catalogEntry = getCatalogEntry(item?.model);
-  if (!catalogEntry) return item;
-  return {
-    ...catalogEntry,
-    ...item,
-    brand: item.brand || catalogEntry.brand,
-    class: item.class || catalogEntry.class,
-  };
-}
-
-function renderPreview(container, entry) {
+function renderPreview(container, entry, modelValue) {
   if (!container) return;
+  if (!modelValue) {
+    container.innerHTML = '<p class="muted">Typ een model; merk, type en afbeeldingen worden automatisch opgehaald via GTABase.</p>';
+    return;
+  }
+
   if (!entry) {
-    container.innerHTML = '<p class="muted">Kies een model uit de catalogus. Merk, type, tags, logo en afbeelding worden automatisch ingevuld.</p>';
+    container.innerHTML = '<p class="muted">Opzoeken...</p>';
+    return;
+  }
+
+  if (entry.status === 'loading') {
+    container.innerHTML = '<p class="muted">Opzoeken bij GTABase...</p>';
+    return;
+  }
+
+  if (entry.status === 'error') {
+    container.innerHTML = `<p class="muted">Kon geen GTABase-resultaat vinden: ${entry.error || 'onbekende fout'}. Je kunt toch opslaan; placeholders worden gebruikt.</p>`;
     return;
   }
 
@@ -351,52 +279,50 @@ function renderPreview(container, entry) {
 
   const logo = entry.logo ? `<img class="logo-thumb" src="${entry.logo}" alt="${entry.brand} logo" />` : '';
   const image = entry.image ? `<img class="car-thumb" src="${entry.image}" alt="${entry.model}" />` : '';
+  const source = entry.sourceUrl ? `<a class="muted" href="${entry.sourceUrl}" target="_blank" rel="noreferrer">Bron: GTABase</a>` : '';
 
   container.innerHTML = `
     <div class="preview-header">
       <div>
-        <strong>${entry.brand} ${entry.model}</strong>
+        <strong>${entry.brand || ''} ${entry.model || modelValue}</strong>
         <span class="muted">${entry.class || ''}</span>
       </div>
       <div class="preview-media">${logo}${image}</div>
     </div>
     <div class="tags">${badges.join('')}</div>
+    ${source}
   `;
 }
 
 function renderAutofillPreview() {
-  const entry = getCatalogEntry(carForm.elements.model.value);
-  renderPreview(autofillPreview, entry);
+  const value = carForm.elements.model.value;
+  const entry = getCachedModel(value);
+  renderPreview(autofillPreview, entry, value);
 }
 
 function renderWishlistPreview() {
-  const entry = getCatalogEntry(wishlistForm.elements.model.value);
-  renderPreview(wishlistPreview, entry);
+  const value = wishlistForm.elements.model.value;
+  const entry = getCachedModel(value);
+  renderPreview(wishlistPreview, entry, value);
 }
 
-function handleCarSubmit(event) {
+async function handleCarSubmit(event) {
   event.preventDefault();
   const formData = new FormData(carForm);
   const entry = Object.fromEntries(formData.entries());
 
-  const catalogEntry = getCatalogEntry(entry.model);
-  if (!catalogEntry) {
-    alert('Kies een model uit de catalogus zodat merk, type, tags, logo en afbeelding automatisch ingevuld worden.');
-    return;
-  }
+  const lookup = await ensureModelInfo(entry.model);
 
-  const car = {
-    ...catalogEntry,
+  const car = applyPlaceholders({
     ...entry,
+    ...lookup,
     id: crypto.randomUUID(),
     floor: Number(entry.floor),
     slot: entry.slot ? Number(entry.slot) : null,
-    brand: catalogEntry.brand,
-    class: catalogEntry.class,
-    tags: catalogEntry.tags || '',
-    logo: catalogEntry.logo || '',
-    image: catalogEntry.image || '',
-  };
+    brand: lookup?.brand || entry.brand || '',
+    class: lookup?.class || entry.class || '',
+    tags: lookup?.tags || entry.tags || '',
+  });
 
   state.cars.push(car);
   if (car.garage && !state.garages.includes(car.garage)) {
@@ -407,28 +333,44 @@ function handleCarSubmit(event) {
   renderAll();
 }
 
-function handleWishlistSubmit(event) {
+async function handleWishlistSubmit(event) {
   event.preventDefault();
   const formData = new FormData(wishlistForm);
   const entry = Object.fromEntries(formData.entries());
 
-  const catalogEntry = getCatalogEntry(entry.model);
-  if (!catalogEntry) {
-    alert('Kies een model uit de catalogus zodat merk en type automatisch ingevuld worden.');
-    return;
-  }
+  const lookup = await ensureModelInfo(entry.model);
 
   const wishlistItem = {
-    ...catalogEntry,
     ...entry,
-    brand: catalogEntry.brand,
-    class: catalogEntry.class,
+    ...lookup,
+    brand: lookup?.brand || entry.brand || '',
+    class: lookup?.class || entry.class || '',
   };
 
   state.wishlist.push(wishlistItem);
   saveState();
   wishlistForm.reset();
   renderAll();
+}
+
+async function ensureModelInfo(model) {
+  if (!model) return null;
+  const normalized = model.trim().toLowerCase();
+  const cached = modelCache.get(normalized);
+  if (cached?.status === 'success') return cached;
+  if (cached?.status === 'loading') {
+    return new Promise((resolve) => {
+      const watcher = setInterval(() => {
+        const current = modelCache.get(normalized);
+        if (current && current.status !== 'loading') {
+          clearInterval(watcher);
+          resolve(current.status === 'success' ? current : null);
+        }
+      }, 200);
+    });
+  }
+  const result = await fetchAndCacheModel(model);
+  return result?.status === 'success' ? result : null;
 }
 
 function exportJson() {
@@ -462,7 +404,7 @@ function parseCsv(text) {
   const cars = lines.map((line) => {
     const values = line.split(',');
     const row = Object.fromEntries(columns.map((col, idx) => [col.trim(), values[idx] ? values[idx].trim() : '']));
-    return {
+    return applyPlaceholders({
       id: crypto.randomUUID(),
       garage: row.garage,
       floor: Number(row.floor) || 1,
@@ -474,7 +416,7 @@ function parseCsv(text) {
       logo: row.logo,
       image: row.image,
       notes: row.notes,
-    };
+    });
   });
   const garages = Array.from(new Set(cars.map((c) => c.garage))).filter(Boolean);
   return { cars, wishlist: [], garages };
@@ -560,12 +502,178 @@ function handleSlotChange(event) {
   renderCarTable();
 }
 
-carForm.addEventListener('submit', handleCarSubmit);
-modelSelect.addEventListener('change', renderAutofillPreview);
-modelSelect.addEventListener('input', renderAutofillPreview);
-wishlistForm.addEventListener('submit', handleWishlistSubmit);
-wishlistModelSelect.addEventListener('change', renderWishlistPreview);
-wishlistModelSelect.addEventListener('input', renderWishlistPreview);
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
+
+async function fetchAndCacheModel(model) {
+  if (!model) return null;
+  const key = model.trim().toLowerCase();
+  if (modelCache.get(key)?.status === 'loading') return modelCache.get(key);
+  modelCache.set(key, { status: 'loading', model: model.trim() });
+  renderAutofillPreview();
+  renderWishlistPreview();
+
+  try {
+    const url = await resolveGtabaseUrl(model);
+    const html = await fetchVehicleContent(url);
+    const parsed = parseVehiclePage(html, url, model);
+    const result = {
+      status: 'success',
+      ...parsed,
+      model: parsed.model || titleCase(model),
+      logo: parsed.logo || brandLogoPlaceholder(parsed.brand),
+      image: parsed.image || carImagePlaceholder(parsed.model || model),
+    };
+    modelCache.set(key, result);
+    renderModelSelects();
+    return result;
+  } catch (err) {
+    console.error('GTABase lookup mislukt', err);
+    modelCache.set(key, { status: 'error', model, error: err.message || 'Geen resultaat' });
+    renderAutofillPreview();
+    renderWishlistPreview();
+    return null;
+  }
+}
+
+async function resolveGtabaseUrl(model) {
+  const searchQuery = `${GTABASE_SEARCH_URL}${encodeURIComponent(model)}&searchphrase=all`;
+  const searchResults = await fetchTextWithFallback([
+    `https://r.jina.ai/${searchQuery}`,
+    `https://r.jina.ai/https://www.gtabase.com/search?searchword=${encodeURIComponent(model)}&searchphrase=all`,
+    `https://r.jina.ai/http://www.gtabase.com/search?searchword=${encodeURIComponent(model)}&searchphrase=all`,
+  ]).catch(() => null);
+
+  if (searchResults) {
+    const match = searchResults.match(/https?:\/\/www\.gtabase\.com\/grand-theft-auto-v\/vehicles\/[a-z0-9-]+/i);
+    if (match) return match[0].replace('http://', 'https://');
+  }
+
+  const slug = slugify(model);
+  return `${GTABASE_VEHICLE_BASE}${slug}`;
+}
+
+async function fetchVehicleContent(url) {
+  const urls = [
+    `https://r.jina.ai/${url}`,
+    `https://r.jina.ai/https://${url.replace(/^https?:\/\//, '')}`,
+    `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`,
+    url,
+  ];
+  return fetchTextWithFallback(urls);
+}
+
+async function fetchTextWithFallback(urls) {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text) return text;
+    } catch (err) {
+      // try next
+    }
+  }
+  throw new Error('Geen bruikbare GTABase-respons');
+}
+
+function parseVehiclePage(text, url, modelInput) {
+  const parser = new DOMParser();
+  let doc = null;
+  try {
+    doc = parser.parseFromString(text, 'text/html');
+  } catch (err) {
+    doc = null;
+  }
+
+  const slug = (url || '').split('/').pop() || '';
+  const slugParts = slug.split('-').filter(Boolean);
+  const slugBrand = slugParts.length > 1 ? titleCase(slugParts[0]) : '';
+  const slugModel = slugParts.length > 1 ? titleCase(slugParts.slice(1).join(' ')) : titleCase(modelInput);
+
+  let ogTitle = '';
+  let ogImage = '';
+  if (doc) {
+    ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+    ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+  }
+
+  let brand = '';
+  let vehicleClass = '';
+
+  if (ogTitle) {
+    const parts = ogTitle.split('|')[0].trim().split(' ');
+    if (parts.length > 1) {
+      brand = parts[0];
+    }
+  }
+
+  if (doc) {
+    const brandNode = doc.querySelector('[itemprop="brand"], .product-manufacturer, .vehicle-manufacturer');
+    if (brandNode) brand = brandNode.textContent.trim();
+
+    const classLabel = Array.from(doc.querySelectorAll('td, th, span, li')).find((node) =>
+      /class|vehicle class/i.test(node.textContent)
+    );
+    if (classLabel && classLabel.nextElementSibling) {
+      vehicleClass = classLabel.nextElementSibling.textContent.trim();
+    }
+  }
+
+  const textMatchClass = text.match(/Vehicle Class[^:]*:\s*([A-Za-z ]+)/i);
+  if (!vehicleClass && textMatchClass) {
+    vehicleClass = textMatchClass[1].trim();
+  }
+
+  const imgMatch = text.match(/og:image" content="([^"]+)"/i) || text.match(/src="(https?:[^"']+\/vehicles[^"']+)"/i);
+  const image = ogImage || (imgMatch ? imgMatch[1] : '') || '';
+
+  return {
+    brand: brand || slugBrand,
+    model: slugModel || modelInput,
+    class: vehicleClass || '',
+    tags: '',
+    image,
+    logo: brandLogoPlaceholder(brand || slugBrand),
+    sourceUrl: url,
+  };
+}
+
+function queueLookup(model) {
+  clearTimeout(lookupTimer);
+  if (!model) {
+    renderAutofillPreview();
+    renderWishlistPreview();
+    return;
+  }
+  lookupTimer = setTimeout(() => {
+    fetchAndCacheModel(model);
+  }, 500);
+}
+
+carForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  handleCarSubmit(event);
+});
+modelSelect.addEventListener('input', () => {
+  queueLookup(modelSelect.value);
+  renderAutofillPreview();
+});
+modelSelect.addEventListener('blur', () => queueLookup(modelSelect.value));
+wishlistForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  handleWishlistSubmit(event);
+});
+wishlistModelSelect.addEventListener('input', () => {
+  queueLookup(wishlistModelSelect.value);
+  renderWishlistPreview();
+});
+wishlistModelSelect.addEventListener('blur', () => queueLookup(wishlistModelSelect.value));
 
 garageFilter.addEventListener('change', renderCarTable);
 searchFilter.addEventListener('input', renderCarTable);
