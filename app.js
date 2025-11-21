@@ -1,86 +1,100 @@
 const STORAGE_KEY = 'gtacars-tracker-v1';
 const DEFAULT_SLOTS = 10;
 
+function makePlaceholder(text, { width = 320, height = 180, fontSize = 22, bg = '#0f172a', fg = '#e2e8f0' } = {}) {
+  const safeText = String(text || '').trim() || 'Auto';
+  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="12" fill="${bg}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${fg}" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-size="${fontSize}" font-weight="700">${safeText}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function brandLogoPlaceholder(brand) {
+  return makePlaceholder(brand || 'Merk', { width: 180, height: 100, fontSize: 20, bg: '#111827', fg: '#f59e0b' });
+}
+
+function carImagePlaceholder(model) {
+  return makePlaceholder(model || 'Auto', { width: 360, height: 200, fontSize: 20, bg: '#0b132b', fg: '#e5e7eb' });
+}
+
 const CAR_CATALOG = [
   {
     brand: 'Annis',
     model: 'Elegy Retro Custom',
     class: 'Sports',
     tags: 'tuner, awd',
-    logo: 'https://i.imgur.com/XX00xNi.png',
-    image: 'https://i.imgur.com/EObwFiX.jpeg',
+    logo: brandLogoPlaceholder('Annis'),
+    image: carImagePlaceholder('Elegy Retro Custom'),
   },
   {
     brand: 'Pegassi',
     model: 'Ignus',
     class: 'Super',
     tags: 'electric, hsw',
-    logo: 'https://i.imgur.com/e4wJltR.png',
-    image: 'https://i.imgur.com/lPbBUQo.jpeg',
+    logo: brandLogoPlaceholder('Pegassi'),
+    image: carImagePlaceholder('Ignus'),
   },
   {
     brand: 'Enus',
     model: 'Deity',
     class: 'Sedan',
     tags: 'armored, missile-lock-on',
-    logo: 'https://i.imgur.com/IJFP9X4.png',
-    image: 'https://i.imgur.com/iQUpSsR.jpeg',
+    logo: brandLogoPlaceholder('Enus'),
+    image: carImagePlaceholder('Deity'),
   },
   {
     brand: 'Bravado',
     model: 'Buffalo STX',
     class: 'Muscle',
     tags: 'armored, missile-lock-on',
-    logo: 'https://i.imgur.com/2tkP3wd.png',
-    image: 'https://i.imgur.com/pWlDeiN.jpeg',
+    logo: brandLogoPlaceholder('Bravado'),
+    image: carImagePlaceholder('Buffalo STX'),
   },
   {
     brand: 'Dinka',
     model: 'Jester RR',
     class: 'Sports',
     tags: 'tuner',
-    logo: 'https://i.imgur.com/YpO73zl.png',
-    image: 'https://i.imgur.com/Mll6txf.jpeg',
+    logo: brandLogoPlaceholder('Dinka'),
+    image: carImagePlaceholder('Jester RR'),
   },
   {
     brand: 'Overflod',
     model: 'Entity MT',
     class: 'Super',
     tags: 'hsw',
-    logo: 'https://i.imgur.com/6cTNRJ8.png',
-    image: 'https://i.imgur.com/EeXAM2O.jpeg',
+    logo: brandLogoPlaceholder('Overflod'),
+    image: carImagePlaceholder('Entity MT'),
   },
   {
     brand: 'Grotti',
     model: 'Itali GTO',
     class: 'Sports',
     tags: 'hsw',
-    logo: 'https://i.imgur.com/epK3C1q.png',
-    image: 'https://i.imgur.com/9Q3TLJC.jpeg',
+    logo: brandLogoPlaceholder('Grotti'),
+    image: carImagePlaceholder('Itali GTO'),
   },
   {
     brand: 'Pfister',
     model: 'Comet S2',
     class: 'Sports',
     tags: 'tuner',
-    logo: 'https://i.imgur.com/9MnyN0M.png',
-    image: 'https://i.imgur.com/UNsNYgd.jpeg',
+    logo: brandLogoPlaceholder('Pfister'),
+    image: carImagePlaceholder('Comet S2'),
   },
   {
     brand: 'Annis',
     model: 'ZR350',
     class: 'Sports Classic',
     tags: 'tuner',
-    logo: 'https://i.imgur.com/XX00xNi.png',
-    image: 'https://i.imgur.com/4FCP4zS.jpeg',
+    logo: brandLogoPlaceholder('Annis'),
+    image: carImagePlaceholder('ZR350'),
   },
   {
     brand: 'Lampadati',
     model: 'Cinquemila',
     class: 'Sedan',
     tags: 'luxury',
-    logo: 'https://i.imgur.com/qoqE3tg.png',
-    image: 'https://i.imgur.com/34z1adf.jpeg',
+    logo: brandLogoPlaceholder('Lampadati'),
+    image: carImagePlaceholder('Cinquemila'),
   },
 ];
 
@@ -96,6 +110,7 @@ const grid = document.getElementById('garage-grid');
 const garageOptions = document.getElementById('garage-options');
 const modelSelect = document.getElementById('model-select');
 const wishlistModelSelect = document.getElementById('wishlist-model-select');
+const modelOptions = document.getElementById('model-options');
 const autofillPreview = document.getElementById('autofill-preview');
 const wishlistPreview = document.getElementById('wishlist-preview');
 
@@ -174,16 +189,8 @@ function renderModelSelects() {
     .filter(Boolean)
     .sort();
 
-  const carFormValue = modelSelect.value;
-  const wishlistValue = wishlistModelSelect.value;
-
-  const options = ['<option value="">Kies een model</option>', ...models.map((m) => `<option value="${m}">${m}</option>`)];
-
-  modelSelect.innerHTML = options.join('');
-  wishlistModelSelect.innerHTML = options.join('');
-
-  modelSelect.value = models.includes(carFormValue) ? carFormValue : '';
-  wishlistModelSelect.value = models.includes(wishlistValue) ? wishlistValue : '';
+  const options = models.map((m) => `<option value="${m}"></option>`);
+  modelOptions.innerHTML = options.join('');
 
   renderAutofillPreview();
   renderWishlistPreview();
@@ -314,8 +321,8 @@ function enrichCarWithCatalog(car) {
     brand: car.brand || catalogEntry.brand,
     class: car.class || catalogEntry.class,
     tags: car.tags || catalogEntry.tags || '',
-    logo: car.logo || catalogEntry.logo || '',
-    image: car.image || catalogEntry.image || '',
+    logo: car.logo || catalogEntry.logo || brandLogoPlaceholder(car.brand || catalogEntry.brand),
+    image: car.image || catalogEntry.image || carImagePlaceholder(car.model || catalogEntry.model),
   };
 }
 
@@ -486,8 +493,8 @@ function buildSampleData() {
         model: 'Elegy Retro Custom',
         class: 'Sports',
         tags: 'tuner, awd',
-        logo: 'https://i.imgur.com/XX00xNi.png',
-        image: 'https://i.imgur.com/EObwFiX.jpeg',
+        logo: brandLogoPlaceholder('Annis'),
+        image: carImagePlaceholder('Elegy Retro Custom'),
         notes: 'Metallic black / lime pearl',
       },
       {
@@ -499,8 +506,8 @@ function buildSampleData() {
         model: 'Ignus',
         class: 'Super',
         tags: 'electric, hsw',
-        logo: 'https://i.imgur.com/e4wJltR.png',
-        image: 'https://i.imgur.com/lPbBUQo.jpeg',
+        logo: brandLogoPlaceholder('Pegassi'),
+        image: carImagePlaceholder('Ignus'),
         notes: 'HSW upgrade',
       },
       {
@@ -512,8 +519,8 @@ function buildSampleData() {
         model: 'Deity',
         class: 'Sedan',
         tags: 'armored, missile-lock-on',
-        logo: 'https://i.imgur.com/IJFP9X4.png',
-        image: 'https://i.imgur.com/iQUpSsR.jpeg',
+        logo: brandLogoPlaceholder('Enus'),
+        image: carImagePlaceholder('Deity'),
         notes: 'Armor plating',
       },
     ],

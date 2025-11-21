@@ -44,7 +44,8 @@
         <label>Garage<input required name="garage" placeholder="Bijv. Eclipse Towers" list="garage-options" /></label>
         <label>Verdieping<input required name="floor" placeholder="1" type="number" min="1" /></label>
         <label>Parkeerplek<input name="slot" placeholder="1" type="number" min="1" /></label>
-        <label>Model<select required name="model" id="model-select"></select></label>
+        <label>Model<input required name="model" id="model-select" list="model-options" placeholder="Typ of kies een model" /></label>
+        <datalist id="model-options"></datalist>
         <label>Notities<input name="notes" placeholder="Kleuren, upgrades..." /></label>
         <div class="autofill-preview" id="autofill-preview"></div>
         <button type="submit">Auto opslaan</button>
@@ -80,7 +81,7 @@
         </div>
       </div>
       <form id="wishlist-form" class="grid">
-        <label>Model<select required name="model" id="wishlist-model-select"></select></label>
+        <label>Model<input required name="model" id="wishlist-model-select" list="model-options" placeholder="Typ of kies een model" /></label>
         <label>Notities<input name="notes" placeholder="Upgrades of locatie" /></label>
         <div class="autofill-preview" id="wishlist-preview"></div>
         <button type="submit">Toevoegen aan wensenlijst</button>
