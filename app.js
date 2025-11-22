@@ -3,6 +3,19 @@ const DEFAULT_SLOTS = 10;
 const GTABASE_SEARCH_URL = 'https://www.gtabase.com/search?searchword=';
 const GTABASE_VEHICLE_BASE = 'https://www.gtabase.com/grand-theft-auto-v/vehicles/';
 
+const OFFLINE_VEHICLE_FALLBACKS = {
+  zentorno: { brand: 'Pegassi', class: 'Super' },
+  ignus: { brand: 'Pegassi', class: 'Super', tags: 'electric' },
+  cyclops: { brand: 'Declasse', class: 'Muscle' },
+  scramjet: { brand: 'Declasse', class: 'Super', tags: 'weaponized' },
+  calico: { brand: 'Karin', class: 'Sports', tags: 'tuner' },
+  'elegy retro custom': { brand: 'Annis', class: 'Sports', tags: 'tuner' },
+  deity: { brand: 'Enus', class: 'Sedan', tags: 'armored' },
+  champion: { brand: 'Dewbauchee', class: 'Super', tags: 'armored' },
+  itali: { brand: 'Grotti', class: 'Super' },
+  pariah: { brand: 'Ocelot', class: 'Sports' },
+};
+
 function makePlaceholder(text, { width = 320, height = 180, fontSize = 22, bg = '#0f172a', fg = '#e2e8f0' } = {}) {
   const safeText = String(text || '').trim() || 'Auto';
   const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="12" fill="${bg}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${fg}" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-size="${fontSize}" font-weight="700">${safeText}</text></svg>`;
@@ -30,6 +43,8 @@ const carTableBody = document.querySelector('#car-table tbody');
 const garageFilter = document.getElementById('garage-filter');
 const searchFilter = document.getElementById('search-filter');
 const carForm = document.getElementById('car-form');
+const carSubmitBtn = document.getElementById('car-submit');
+const cancelEditBtn = document.getElementById('cancel-edit');
 const wishlistForm = document.getElementById('wishlist-form');
 const wishlistList = document.getElementById('wishlist');
 const garageMapSelect = document.getElementById('garage-map');
@@ -49,6 +64,7 @@ const resetBtn = document.getElementById('reset-data');
 const modelCache = new Map();
 let lookupTimer = null;
 let state = normalizeState(loadState());
+let editingCarId = null;
 
 if (!state.cars.length && !state.wishlist.length) {
   state = normalizeState(buildSampleData());
@@ -159,7 +175,7 @@ function renderCarTable() {
     })
     .sort((a, b) => a.garage.localeCompare(b.garage) || a.floor - b.floor || (a.slot || 0) - (b.slot || 0))
     .map(
-      (car) => `<tr>
+      (car) => `<tr data-id="${car.id}">
         <td>${car.garage}</td>
         <td>${car.floor}</td>
         <td>${car.slot || '-'}</td>
@@ -169,20 +185,29 @@ function renderCarTable() {
         <td>${car.tags || ''}</td>
         <td>${car.logo ? `<img class="logo-thumb" src="${car.logo}" alt="${car.brand || 'Merk'} logo" />` : ''}</td>
         <td>${car.image ? `<img class="car-thumb" src="${car.image}" alt="${car.model || 'Auto'}" />` : ''}</td>
+        <td class="row-actions">
+          <button type="button" class="ghost edit-car">Bewerk</button>
+          <button type="button" class="ghost danger delete-car">Verwijder</button>
+        </td>
       </tr>`
     )
     .join('');
 
-  carTableBody.innerHTML = rows || "<tr><td colspan=\"9\">Nog geen auto's</td></tr>";
+  carTableBody.innerHTML = rows || "<tr><td colspan=\"10\">Nog geen auto's</td></tr>";
 }
 
 function renderWishlist() {
   wishlistList.innerHTML = state.wishlist
     .map(
-      (item) => `<li>
-        <h3>${item.brand ? `${item.brand} ` : ''}${item.model}</h3>
-        <p>${item.class || ''}</p>
-        ${item.notes ? `<p>${item.notes}</p>` : ''}
+      (item, idx) => `<li data-idx="${idx}">
+        <div class="wishlist-row">
+          <div>
+            <h3>${item.brand ? `${item.brand} ` : ''}${item.model}</h3>
+            <p>${item.class || ''}</p>
+            ${item.notes ? `<p>${item.notes}</p>` : ''}
+          </div>
+          <button type="button" class="ghost danger delete-wish">Verwijder</button>
+        </div>
       </li>`
     )
     .join('');
@@ -215,7 +240,8 @@ function renderGarageGrid() {
     return;
   }
 
-  const cars = state.cars.filter((c) => c.garage === garage && Number(c.floor) === floor);
+  const garageCars = state.cars.filter((c) => c.garage === garage);
+  const cars = garageCars.filter((c) => c.garage === garage && Number(c.floor) === floor);
   const template = document.getElementById('slot-template');
 
   for (let i = 1; i <= DEFAULT_SLOTS; i += 1) {
@@ -226,8 +252,8 @@ function renderGarageGrid() {
     const select = node.querySelector('.slot-select');
     select.dataset.slot = i;
     select.innerHTML = `<option value="">-- koppel auto --</option>` +
-      cars
-        .map((c) => `<option value="${c.id}" ${slotCar && c.id === slotCar.id ? 'selected' : ''}>${c.brand || ''} ${c.model || ''}</option>`)
+      garageCars
+        .map((c) => `<option value="${c.id}" ${slotCar && c.id === slotCar.id ? 'selected' : ''}>${c.brand || ''} ${c.model || ''} (${c.floor || 1})</option>`)
         .join('');
 
     const body = node.querySelector('.slot-body');
@@ -316,7 +342,7 @@ async function handleCarSubmit(event) {
   const car = applyPlaceholders({
     ...entry,
     ...lookup,
-    id: crypto.randomUUID(),
+    id: editingCarId || crypto.randomUUID(),
     floor: Number(entry.floor),
     slot: entry.slot ? Number(entry.slot) : null,
     brand: lookup?.brand || entry.brand || '',
@@ -324,12 +350,17 @@ async function handleCarSubmit(event) {
     tags: lookup?.tags || entry.tags || '',
   });
 
-  state.cars.push(car);
+  if (editingCarId) {
+    state.cars = state.cars.map((c) => (c.id === editingCarId ? { ...car } : c));
+  } else {
+    state.cars.push(car);
+  }
+
   if (car.garage && !state.garages.includes(car.garage)) {
     state.garages.push(car.garage);
   }
   saveState();
-  carForm.reset();
+  cancelEdit();
   renderAll();
 }
 
@@ -479,6 +510,29 @@ function resetData() {
   renderAll();
 }
 
+function startEditCar(carId) {
+  const car = state.cars.find((c) => c.id === carId);
+  if (!car) return;
+  editingCarId = carId;
+  carForm.elements.garage.value = car.garage || '';
+  carForm.elements.floor.value = car.floor || '';
+  carForm.elements.slot.value = car.slot || '';
+  carForm.elements.model.value = car.model || '';
+  carForm.elements.notes.value = car.notes || '';
+  carSubmitBtn.textContent = 'Auto bijwerken';
+  cancelEditBtn.style.display = 'inline-flex';
+  queueLookup(car.model);
+  renderAutofillPreview();
+}
+
+function cancelEdit() {
+  editingCarId = null;
+  carForm.reset();
+  carSubmitBtn.textContent = 'Auto opslaan';
+  cancelEditBtn.style.display = 'none';
+  renderAutofillPreview();
+}
+
 function handleSlotChange(event) {
   const select = event.target.closest('.slot-select');
   if (!select) return;
@@ -488,11 +542,14 @@ function handleSlotChange(event) {
   const floor = Number(floorMapSelect.value);
 
   state.cars = state.cars.map((car) => {
-    if (car.garage === garage && Number(car.floor) === floor && Number(car.slot) === slot) {
+    if (car.garage === garage && Number(car.floor) === floor && Number(car.slot) === slot && !carId) {
+      return { ...car, slot: null };
+    }
+    if (car.garage === garage && Number(car.floor) === floor && Number(car.slot) === slot && car.id !== carId) {
       return { ...car, slot: null };
     }
     if (car.id === carId) {
-      return { ...car, slot };
+      return { ...car, slot, garage, floor };
     }
     return car;
   });
@@ -500,6 +557,17 @@ function handleSlotChange(event) {
   saveState();
   renderGarageGrid();
   renderCarTable();
+}
+
+function deleteCar(carId) {
+  const car = state.cars.find((c) => c.id === carId);
+  if (!car) return;
+  state.cars = state.cars.filter((c) => c.id !== carId);
+  saveState();
+  if (editingCarId === carId) {
+    cancelEdit();
+  }
+  renderAll();
 }
 
 function slugify(text) {
@@ -534,6 +602,14 @@ async function fetchAndCacheModel(model) {
     return result;
   } catch (err) {
     console.error('GTABase lookup mislukt', err);
+    const fallback = buildOfflineModel(model);
+    if (fallback) {
+      modelCache.set(key, fallback);
+      renderAutofillPreview();
+      renderWishlistPreview();
+      renderModelSelects();
+      return fallback;
+    }
     modelCache.set(key, { status: 'error', model, error: err.message || 'Geen resultaat' });
     renderAutofillPreview();
     renderWishlistPreview();
@@ -580,6 +656,24 @@ async function fetchTextWithFallback(urls) {
     }
   }
   throw new Error('Geen bruikbare GTABase-respons');
+}
+
+function buildOfflineModel(model) {
+  const key = model.trim().toLowerCase();
+  const fallback = OFFLINE_VEHICLE_FALLBACKS[key];
+  const brand = fallback?.brand || (key.includes(' ') ? titleCase(key.split(' ')[0]) : 'Onbekend');
+  const modelName = fallback?.model || titleCase(model);
+
+  return {
+    status: 'success',
+    brand,
+    model: modelName,
+    class: fallback?.class || '',
+    tags: fallback?.tags || '',
+    logo: brandLogoPlaceholder(brand),
+    image: carImagePlaceholder(modelName),
+    sourceUrl: '',
+  };
 }
 
 function parseVehiclePage(text, url, modelInput) {
@@ -675,6 +769,20 @@ wishlistModelSelect.addEventListener('input', () => {
 });
 wishlistModelSelect.addEventListener('blur', () => queueLookup(wishlistModelSelect.value));
 
+cancelEditBtn.addEventListener('click', cancelEdit);
+
+carTableBody.addEventListener('click', (event) => {
+  const row = event.target.closest('tr');
+  const carId = row?.dataset?.id;
+  if (!carId) return;
+  if (event.target.classList.contains('edit-car')) {
+    startEditCar(carId);
+  }
+  if (event.target.classList.contains('delete-car')) {
+    deleteCar(carId);
+  }
+});
+
 garageFilter.addEventListener('change', renderCarTable);
 searchFilter.addEventListener('input', renderCarTable);
 
@@ -685,6 +793,16 @@ garageMapSelect.addEventListener('change', () => {
 
 floorMapSelect.addEventListener('change', renderGarageGrid);
 grid.addEventListener('change', handleSlotChange);
+wishlistList.addEventListener('click', (event) => {
+  const item = event.target.closest('li');
+  if (!item) return;
+  if (event.target.classList.contains('delete-wish')) {
+    const idx = Number(item.dataset.idx);
+    state.wishlist.splice(idx, 1);
+    saveState();
+    renderWishlist();
+  }
+});
 
 exportBtn.addEventListener('click', exportJson);
 resetBtn.addEventListener('click', resetData);

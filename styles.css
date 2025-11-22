@@ -63,6 +63,12 @@ button {
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
+.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 button:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px rgba(34, 197, 94, 0.2);
@@ -125,6 +131,16 @@ main {
   margin-bottom: 12px;
 }
 
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#cancel-edit {
+  display: none;
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -185,6 +201,15 @@ table thead {
   top: 0;
 }
 
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ghost.danger {
+  color: var(--danger);
+}
+
 .logo-thumb, .car-thumb {
   width: 60px;
   height: 40px;
@@ -212,6 +237,13 @@ table thead {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
+}
+
+.wishlist-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 
 .wishlist h3 {

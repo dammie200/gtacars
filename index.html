@@ -48,7 +48,10 @@
         <datalist id="model-options"></datalist>
         <label>Notities<input name="notes" placeholder="Kleuren, upgrades..." /></label>
         <div class="autofill-preview" id="autofill-preview"></div>
-        <button type="submit">Auto opslaan</button>
+        <div class="form-actions">
+          <button type="submit" id="car-submit">Auto opslaan</button>
+          <button type="button" id="cancel-edit" class="ghost">Annuleren</button>
+        </div>
       </form>
 
       <datalist id="garage-options"></datalist>
@@ -66,6 +69,7 @@
               <th>Tags</th>
               <th>Logo</th>
               <th>Afbeelding</th>
+              <th>Acties</th>
             </tr>
           </thead>
           <tbody></tbody>
