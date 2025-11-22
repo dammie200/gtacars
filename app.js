@@ -215,16 +215,24 @@ function renderWishlist() {
 
 function renderMapSelectors() {
   const garages = getAllGarages();
-  garageMapSelect.innerHTML = garages.map((g) => `<option value="${g}">${g}</option>`).join('');
+  const previousGarage = garageMapSelect.value;
+  garageMapSelect.innerHTML = '<option value="">Kies garage...</option>' + garages.map((g) => `<option value="${g}">${g}</option>`).join('');
 
-  if (garages.length && !garages.includes(garageMapSelect.value)) {
+  if (garages.length && garages.includes(previousGarage)) {
+    garageMapSelect.value = previousGarage;
+  } else if (garages.length) {
     garageMapSelect.value = garages[0];
   }
 
   const selectedGarage = garageMapSelect.value || garages[0];
   if (selectedGarage) {
     const floors = Array.from(new Set(state.cars.filter((c) => c.garage === selectedGarage).map((c) => c.floor))).sort((a, b) => a - b);
-    floorMapSelect.innerHTML = floors.map((f) => `<option value="${f}">${f}</option>`).join('');
+    const availableFloors = floors.length ? floors : [1];
+    const previousFloor = floorMapSelect.value;
+    floorMapSelect.innerHTML = availableFloors.map((f) => `<option value="${f}">${f}</option>`).join('');
+    if (previousFloor && availableFloors.includes(Number(previousFloor))) {
+      floorMapSelect.value = previousFloor;
+    }
   } else {
     floorMapSelect.innerHTML = '';
   }
@@ -244,7 +252,11 @@ function renderGarageGrid() {
   const cars = garageCars.filter((c) => c.garage === garage && Number(c.floor) === floor);
   const template = document.getElementById('slot-template');
 
-  for (let i = 1; i <= DEFAULT_SLOTS; i += 1) {
+  const maxSlot = Math.max(DEFAULT_SLOTS, ...garageCars.map((c) => Number(c.slot) || 0));
+  const columns = Math.max(2, Math.ceil(maxSlot / 2));
+  grid.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
+
+  for (let i = 1; i <= maxSlot; i += 1) {
     const slotCar = cars.find((c) => Number(c.slot) === i);
     const node = template.content.cloneNode(true);
     node.querySelector('.slot-number').textContent = `Plek ${i}`;
@@ -676,6 +688,21 @@ function buildOfflineModel(model) {
   };
 }
 
+function normalizeClassSegment(vehicleClass) {
+  return (vehicleClass || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')[0] || 'main';
+}
+
+function buildGtabaseImage(slugParts, vehicleClass) {
+  const baseName = slugParts[slugParts.length - 1];
+  const classSegment = normalizeClassSegment(vehicleClass);
+  if (!baseName) return '';
+  return `https://www.gtabase.com/images/jch-optimize/ng/images_gta-5_vehicles_${classSegment}_main_${baseName}.webp`;
+}
+
 function parseVehiclePage(text, url, modelInput) {
   const parser = new DOMParser();
   let doc = null;
@@ -725,7 +752,10 @@ function parseVehiclePage(text, url, modelInput) {
   }
 
   const imgMatch = text.match(/og:image" content="([^"]+)"/i) || text.match(/src="(https?:[^"']+\/vehicles[^"']+)"/i);
-  const image = ogImage || (imgMatch ? imgMatch[1] : '') || '';
+  const detectedImage = ogImage || (imgMatch ? imgMatch[1] : '') || '';
+  const safeDetectedImage = /removed\.png/i.test(detectedImage) ? '' : detectedImage;
+  const fallbackImage = buildGtabaseImage(slugParts, vehicleClass || slugBrand);
+  const image = safeDetectedImage || fallbackImage;
 
   return {
     brand: brand || slugBrand,
