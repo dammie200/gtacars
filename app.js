@@ -187,7 +187,7 @@ function renderCarTable() {
         <td>${car.image ? `<img class="car-thumb" src="${car.image}" alt="${car.model || 'Auto'}" />` : ''}</td>
         <td class="row-actions">
           <button type="button" class="ghost edit-car">Bewerk</button>
-          <button type="button" class="ghost danger delete-car">Verwijder</button>
+          <button type="button" class="ghost danger delete-car" aria-label="Verwijder" title="Verwijder">🗑️</button>
         </td>
       </tr>`
     )
@@ -206,7 +206,7 @@ function renderWishlist() {
             <p>${item.class || ''}</p>
             ${item.notes ? `<p>${item.notes}</p>` : ''}
           </div>
-          <button type="button" class="ghost danger delete-wish">Verwijder</button>
+          <button type="button" class="ghost danger delete-wish" aria-label="Verwijder" title="Verwijder">🗑️</button>
         </div>
       </li>`
     )
@@ -675,6 +675,8 @@ function buildOfflineModel(model) {
   const fallback = OFFLINE_VEHICLE_FALLBACKS[key];
   const brand = fallback?.brand || (key.includes(' ') ? titleCase(key.split(' ')[0]) : 'Onbekend');
   const modelName = fallback?.model || titleCase(model);
+  const slugParts = slugify(modelName).split('-');
+  const fallbackImage = buildGtabaseImage(slugParts, fallback?.class);
 
   return {
     status: 'success',
@@ -683,7 +685,7 @@ function buildOfflineModel(model) {
     class: fallback?.class || '',
     tags: fallback?.tags || '',
     logo: brandLogoPlaceholder(brand),
-    image: carImagePlaceholder(modelName),
+    image: fallbackImage || carImagePlaceholder(modelName),
     sourceUrl: '',
   };
 }
@@ -712,10 +714,11 @@ function parseVehiclePage(text, url, modelInput) {
     doc = null;
   }
 
-  const slug = (url || '').split('/').pop() || '';
+  const slug = (url || '').split('/').pop() || slugify(modelInput);
   const slugParts = slug.split('-').filter(Boolean);
   const slugBrand = slugParts.length > 1 ? titleCase(slugParts[0]) : '';
   const slugModel = slugParts.length > 1 ? titleCase(slugParts.slice(1).join(' ')) : titleCase(modelInput);
+  const offlineFallback = OFFLINE_VEHICLE_FALLBACKS[modelInput.trim().toLowerCase()];
 
   let ogTitle = '';
   let ogImage = '';
@@ -754,16 +757,17 @@ function parseVehiclePage(text, url, modelInput) {
   const imgMatch = text.match(/og:image" content="([^"]+)"/i) || text.match(/src="(https?:[^"']+\/vehicles[^"']+)"/i);
   const detectedImage = ogImage || (imgMatch ? imgMatch[1] : '') || '';
   const safeDetectedImage = /removed\.png/i.test(detectedImage) ? '' : detectedImage;
-  const fallbackImage = buildGtabaseImage(slugParts, vehicleClass || slugBrand);
+  const classForImage = vehicleClass || offlineFallback?.class || '';
+  const fallbackImage = buildGtabaseImage(slugParts, classForImage);
   const image = safeDetectedImage || fallbackImage;
 
   return {
-    brand: brand || slugBrand,
+    brand: brand || offlineFallback?.brand || slugBrand,
     model: slugModel || modelInput,
-    class: vehicleClass || '',
+    class: vehicleClass || offlineFallback?.class || '',
     tags: '',
     image,
-    logo: brandLogoPlaceholder(brand || slugBrand),
+    logo: brandLogoPlaceholder(brand || offlineFallback?.brand || slugBrand),
     sourceUrl: url,
   };
 }
