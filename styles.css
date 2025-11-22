@@ -309,11 +309,14 @@ table thead {
   padding: 10px;
   display: grid;
   gap: 6px;
+  cursor: grab;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .slot-body.empty {
   color: var(--muted);
   text-align: center;
+  cursor: default;
 }
 
 .slot-body img {
@@ -322,6 +325,17 @@ table thead {
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid var(--border);
+}
+
+.slot-body.dragging {
+  opacity: 0.8;
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.08);
+  transform: scale(1.01);
+}
+
+.slot:not(.dragging) .slot-body:hover {
+  border-color: var(--primary);
 }
 
 .slot-body .tags {

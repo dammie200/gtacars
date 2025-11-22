@@ -2,6 +2,7 @@ const STORAGE_KEY = 'gtacars-tracker-v1';
 const DEFAULT_SLOTS = 10;
 const GTABASE_SEARCH_URL = 'https://www.gtabase.com/search?searchword=';
 const GTABASE_VEHICLE_BASE = 'https://www.gtabase.com/grand-theft-auto-v/vehicles/';
+const GTABASE_MANUFACTURER_BASE = 'https://www.gtabase.com/images/jch-optimize/ng/images_gta-5_manufacturers';
 
 const OFFLINE_VEHICLE_FALLBACKS = {
   zentorno: { brand: 'Pegassi', class: 'Super' },
@@ -65,6 +66,7 @@ const modelCache = new Map();
 let lookupTimer = null;
 let state = normalizeState(loadState());
 let editingCarId = null;
+let draggedCarId = null;
 
 if (!state.cars.length && !state.wishlist.length) {
   state = normalizeState(buildSampleData());
@@ -110,9 +112,10 @@ function saveState() {
 }
 
 function applyPlaceholders(entry) {
+  const logo = entry.logo || buildGtabaseBrandLogo(entry.brand) || brandLogoPlaceholder(entry.brand);
   return {
     ...entry,
-    logo: entry.logo || brandLogoPlaceholder(entry.brand),
+    logo,
     image: entry.image || carImagePlaceholder(entry.model),
   };
 }
@@ -259,6 +262,8 @@ function renderGarageGrid() {
   for (let i = 1; i <= maxSlot; i += 1) {
     const slotCar = cars.find((c) => Number(c.slot) === i);
     const node = template.content.cloneNode(true);
+    const slotNode = node.querySelector('.slot');
+    slotNode.dataset.slot = i;
     node.querySelector('.slot-number').textContent = `Plek ${i}`;
 
     const select = node.querySelector('.slot-select');
@@ -269,8 +274,11 @@ function renderGarageGrid() {
         .join('');
 
     const body = node.querySelector('.slot-body');
+    body.dataset.slot = i;
     if (slotCar) {
       body.classList.remove('empty');
+      body.dataset.carId = slotCar.id;
+      body.setAttribute('draggable', 'true');
       body.innerHTML = `
         <strong>${slotCar.brand || ''} ${slotCar.model || ''}</strong>
         <span>${slotCar.class || ''}</span>
@@ -478,7 +486,7 @@ function buildSampleData() {
         model: 'Elegy Retro Custom',
         class: 'Sports',
         tags: 'tuner, awd',
-        logo: brandLogoPlaceholder('Annis'),
+        logo: buildGtabaseBrandLogo('Annis'),
         image: carImagePlaceholder('Elegy Retro Custom'),
         notes: 'Metallic black / lime pearl',
       },
@@ -491,7 +499,7 @@ function buildSampleData() {
         model: 'Ignus',
         class: 'Super',
         tags: 'electric, hsw',
-        logo: brandLogoPlaceholder('Pegassi'),
+        logo: buildGtabaseBrandLogo('Pegassi'),
         image: carImagePlaceholder('Ignus'),
         notes: 'HSW upgrade',
       },
@@ -504,7 +512,7 @@ function buildSampleData() {
         model: 'Deity',
         class: 'Sedan',
         tags: 'armored, missile-lock-on',
-        logo: brandLogoPlaceholder('Enus'),
+        logo: buildGtabaseBrandLogo('Enus'),
         image: carImagePlaceholder('Deity'),
         notes: 'Armor plating',
       },
@@ -569,6 +577,56 @@ function handleSlotChange(event) {
   saveState();
   renderGarageGrid();
   renderCarTable();
+}
+
+function handleDragStart(event) {
+  const body = event.target.closest('.slot-body');
+  if (!body?.dataset?.carId) return;
+  draggedCarId = body.dataset.carId;
+  body.classList.add('dragging');
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', draggedCarId);
+    event.dataTransfer.effectAllowed = 'move';
+  }
+}
+
+function handleDragOver(event) {
+  if (event.target.closest('.slot')) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+}
+
+function handleDrop(event) {
+  const slotNode = event.target.closest('.slot');
+  if (!slotNode) return;
+  event.preventDefault();
+  const slot = Number(slotNode.dataset.slot);
+  const garage = garageMapSelect.value;
+  const floor = Number(floorMapSelect.value);
+  const carId = draggedCarId || event.dataTransfer?.getData('text/plain');
+  if (!carId || Number.isNaN(slot)) return;
+
+  state.cars = state.cars.map((car) => {
+    if (car.garage === garage && Number(car.floor) === floor && Number(car.slot) === slot && car.id !== carId) {
+      return { ...car, slot: null };
+    }
+    if (car.id === carId) {
+      return { ...car, slot, garage, floor };
+    }
+    return car;
+  });
+
+  saveState();
+  draggedCarId = null;
+  renderGarageGrid();
+  renderCarTable();
+}
+
+function handleDragEnd(event) {
+  const body = event.target.closest('.slot-body');
+  if (body) body.classList.remove('dragging');
+  draggedCarId = null;
 }
 
 function deleteCar(carId) {
@@ -682,7 +740,7 @@ function buildOfflineModel(model) {
     model: modelName,
     class: fallback?.class || '',
     tags: fallback?.tags || '',
-    logo: brandLogoPlaceholder(brand),
+    logo: buildGtabaseBrandLogo(brand) || brandLogoPlaceholder(brand),
     image: buildGtabaseImageFromClassModel(fallback?.class || '', modelName) || carImagePlaceholder(modelName),
     sourceUrl: '',
   };
@@ -735,6 +793,21 @@ function modelSlug(model) {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, '_');
+}
+
+function brandSlug(brand) {
+  return (brand || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function buildGtabaseBrandLogo(brand) {
+  const slug = brandSlug(brand);
+  if (!slug) return '';
+  return `${GTABASE_MANUFACTURER_BASE}_${slug}.webp`;
 }
 
 function buildGtabaseImageFromClassModel(vehicleClass, model) {
@@ -795,6 +868,7 @@ function parseVehiclePage(text, url, modelInput) {
 
   const classForImage = vehicleClass || offlineFallback?.class || '';
   const builtImage = buildGtabaseImageFromClassModel(classForImage, slugModel || modelInput);
+  const builtLogo = buildGtabaseBrandLogo(brand || offlineFallback?.brand || slugBrand);
 
   const imgMatch = text.match(/og:image" content="([^"]+)"/i) || text.match(/src="(https?:[^"']+\/vehicles[^"']+)"/i);
   const detectedImage = ogImage || (imgMatch ? imgMatch[1] : '') || '';
@@ -807,7 +881,7 @@ function parseVehiclePage(text, url, modelInput) {
     class: vehicleClass || offlineFallback?.class || '',
     tags: '',
     image,
-    logo: brandLogoPlaceholder(brand || offlineFallback?.brand || slugBrand),
+    logo: builtLogo || brandLogoPlaceholder(brand || offlineFallback?.brand || slugBrand),
     sourceUrl: url,
   };
 }
@@ -867,6 +941,10 @@ garageMapSelect.addEventListener('change', () => {
 
 floorMapSelect.addEventListener('change', renderGarageGrid);
 grid.addEventListener('change', handleSlotChange);
+grid.addEventListener('dragstart', handleDragStart);
+grid.addEventListener('dragover', handleDragOver);
+grid.addEventListener('drop', handleDrop);
+grid.addEventListener('dragend', handleDragEnd);
 wishlistList.addEventListener('click', (event) => {
   const item = event.target.closest('li');
   if (!item) return;
