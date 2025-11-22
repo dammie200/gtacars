@@ -675,8 +675,6 @@ function buildOfflineModel(model) {
   const fallback = OFFLINE_VEHICLE_FALLBACKS[key];
   const brand = fallback?.brand || (key.includes(' ') ? titleCase(key.split(' ')[0]) : 'Onbekend');
   const modelName = fallback?.model || titleCase(model);
-  const slugParts = slugify(modelName).split('-');
-  const fallbackImage = buildGtabaseImage(slugParts, fallback?.class);
 
   return {
     status: 'success',
@@ -685,24 +683,65 @@ function buildOfflineModel(model) {
     class: fallback?.class || '',
     tags: fallback?.tags || '',
     logo: brandLogoPlaceholder(brand),
-    image: fallbackImage || carImagePlaceholder(modelName),
+    image: buildGtabaseImageFromClassModel(fallback?.class || '', modelName) || carImagePlaceholder(modelName),
     sourceUrl: '',
   };
 }
 
 function normalizeClassSegment(vehicleClass) {
-  return (vehicleClass || '')
+  const raw = (vehicleClass || '').toLowerCase().trim();
+  if (!raw) return 'main';
+
+  const normalized = raw.replace(/[^a-z0-9]+/g, ' ').trim();
+  const known = {
+    super: 'super',
+    sports: 'sports',
+    'sports classic': 'sports-classic',
+    'sports classics': 'sports-classic',
+    muscle: 'muscle',
+    coupe: 'coupe',
+    coupes: 'coupe',
+    compact: 'compact',
+    compacts: 'compact',
+    sedan: 'sedan',
+    sedans: 'sedan',
+    suv: 'suv',
+    suvs: 'suv',
+    'off road': 'off-road',
+    'off-road': 'off-road',
+    motorcycle: 'motorcycle',
+    motorcycles: 'motorcycle',
+    motorbike: 'motorcycle',
+    vans: 'vans',
+    van: 'vans',
+    utility: 'utility',
+    emergency: 'emergency',
+    industrial: 'industrial',
+    service: 'service',
+    military: 'military',
+    plane: 'planes',
+    planes: 'planes',
+    helicopter: 'helicopters',
+    helicopters: 'helicopters',
+    helicopteres: 'helicopters',
+  };
+
+  return known[normalized] || slugify(normalized);
+}
+
+function modelSlug(model) {
+  return (model || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
-    .split(' ')[0] || 'main';
+    .replace(/\s+/g, '_');
 }
 
-function buildGtabaseImage(slugParts, vehicleClass) {
-  const baseName = slugParts[slugParts.length - 1];
+function buildGtabaseImageFromClassModel(vehicleClass, model) {
   const classSegment = normalizeClassSegment(vehicleClass);
-  if (!baseName) return '';
-  return `https://www.gtabase.com/images/jch-optimize/ng/images_gta-5_vehicles_${classSegment}_main_${baseName}.webp`;
+  const modelSegment = modelSlug(model);
+  if (!modelSegment) return '';
+  return `https://www.gtabase.com/images/jch-optimize/ng/images_gta-5_vehicles_${classSegment}_main_${modelSegment}.webp`;
 }
 
 function parseVehiclePage(text, url, modelInput) {
@@ -754,12 +793,13 @@ function parseVehiclePage(text, url, modelInput) {
     vehicleClass = textMatchClass[1].trim();
   }
 
+  const classForImage = vehicleClass || offlineFallback?.class || '';
+  const builtImage = buildGtabaseImageFromClassModel(classForImage, slugModel || modelInput);
+
   const imgMatch = text.match(/og:image" content="([^"]+)"/i) || text.match(/src="(https?:[^"']+\/vehicles[^"']+)"/i);
   const detectedImage = ogImage || (imgMatch ? imgMatch[1] : '') || '';
   const safeDetectedImage = /removed\.png/i.test(detectedImage) ? '' : detectedImage;
-  const classForImage = vehicleClass || offlineFallback?.class || '';
-  const fallbackImage = buildGtabaseImage(slugParts, classForImage);
-  const image = safeDetectedImage || fallbackImage;
+  const image = builtImage || safeDetectedImage;
 
   return {
     brand: brand || offlineFallback?.brand || slugBrand,
